@@ -1,27 +1,34 @@
 import type { Reference, SourceKey } from './types';
+import { sourceQuotas } from './source-balance';
 
-/** Reserve room for each collection, then reuse unused places as sources finish. */
-export function createCreatorPool(target: number, receive: (ref: Reference) => void) {
-  const keys: SourceKey[] = ['met', 'cosmos', 'nasa'];
-  const quota = Object.fromEntries(keys.map((key, i) => [key, Math.floor(target / 3) + (i < target % 3 ? 1 : 0)])) as Record<SourceKey, number>;
+/** Release a balanced stream, holding faster collections until slower ones can contribute. */
+export function createCreatorPool(target: number, receive: (ref: Reference) => void, previous: Record<SourceKey, number> = { met: 0, nasa: 0, cosmos: 0 }) {
+  const keys: SourceKey[] = ['met', 'nasa', 'cosmos'];
+  const quota = sourceQuotas(target, previous);
   const counts = { met: 0, cosmos: 0, nasa: 0 };
-  const pending: Reference[] = [];
+  const accepted = { met: 0, cosmos: 0, nasa: 0 };
+  const waiting: Record<SourceKey, Reference[]> = { met: [], nasa: [], cosmos: [] };
   const finished = new Set<SourceKey>();
   const ids = new Set<string>(), images = new Set<string>();
   let count = 0;
-  const emit = (ref: Reference) => { count++; counts[ref.sourceKey!]++; receive(ref); };
   const drain = () => {
-    const reserved = keys.reduce((sum, key) => sum + (finished.has(key) ? 0 : Math.max(0, quota[key] - counts[key])), 0);
-    while (pending.length && count < target - reserved) emit(pending.shift()!);
+    while (count < target) {
+      const active = keys.filter(key => counts[key] < quota[key] && (!finished.has(key) || waiting[key].length));
+      if (!active.length) return;
+      const lowest = Math.min(...active.map(key => previous[key] + counts[key]));
+      const group = active.filter(key => previous[key] + counts[key] === lowest);
+      if (group.some(key => !waiting[key].length)) return;
+      for (const key of group) { const ref = waiting[key].shift()!; count++; counts[key]++; receive(ref); }
+    }
   };
   return {
     get count() { return count; },
+    limit(key: SourceKey) { return quota[key]; },
+    available(key: SourceKey) { return accepted[key]; },
     offer(ref: Reference) {
-      if (!ref.sourceKey || count >= target || ids.has(ref.id) || images.has(ref.image)) return;
+      if (!ref.sourceKey || finished.has(ref.sourceKey) || accepted[ref.sourceKey] >= quota[ref.sourceKey] || count >= target || ids.has(ref.id) || images.has(ref.image)) return;
       ids.add(ref.id); images.add(ref.image);
-      if (counts[ref.sourceKey] < quota[ref.sourceKey]) emit(ref);
-      else pending.push(ref);
-      drain();
+      accepted[ref.sourceKey]++; waiting[ref.sourceKey].push(ref); drain();
     },
     finish(key: SourceKey) { finished.add(key); drain(); },
   };

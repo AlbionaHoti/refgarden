@@ -36,4 +36,9 @@
 .prompt-actions .create-button{width:auto;min-height:34px;gap:16px;justify-content:center;padding:8px 13px;border-radius:9px;font-size:12px;flex-shrink:0}.prompt-actions .create-button svg{width:14px;height:14px}
 .prompt-actions:has(details[open]){flex-wrap:wrap}.prompt-actions>details[open]{flex-basis:100%;order:2}.prompt-actions .style-field{margin:8px 0 0}.prompt-actions .style-field legend{display:none}
 .prompt-panel .panel-tools{margin-top:10px;padding-top:10px;font-size:10px}.prompt-panel .panel-message{font-size:10px;margin-top:8px}
+.source-counts{margin-top:12px;font-size:10px;font-variant-numeric:tabular-nums}.source-counts>div{display:flex;justify-content:flex-end;gap:12px;margin-top:5px}.source-counts span{white-space:nowrap}.source-counts b{font-weight:600;margin-left:3px;color:#365440}
+@media(max-width:600px){.source-counts>div{flex-direction:column;gap:4px}.source-counts{font-size:9px}}
 @media(max-width:600px){.prompt-panel{top:14px;left:14px;width:min(310px,calc(100vw - 106px));min-width:220px;padding:13px;max-height:calc(100dvh - 28px)}.prompt-panel textarea{font-size:12px;min-height:60px}.hud{right:14px;top:18px}.hud strong{font-size:18px}}
+
+/* Offscreen and hidden-tab cards keep their place without continuous motion. */
+.orbit-card[data-near=false] .orbit-face,.orbit-card[data-near=false] .orbit-face img,.world[data-paused=true] .orbit-face,.world[data-paused=true] .orbit-face img,.space[data-dragging=true] .orbit-face img{animation-play-state:paused}

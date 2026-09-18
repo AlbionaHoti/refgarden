@@ -18,6 +18,9 @@ Or try Bauhaus ballet costumes, glowing ocean life, or a quiet editorial about a
 
 - Images arrive progressively in a spatial gallery. Drag to orbit; scroll to zoom.
 - Explore starts with up to 100 references, then discovers more until you press Stop or the sources stop returning new results.
+- The first 100 images have loading priority. Later results expand the gallery, loading two thumbnails at a time near the viewport. Earlier images stay in place.
+- The timer separates collected references from loaded thumbnails. Source counts cover the full collection.
+- Fresh results arrive in mixed groups. Faster sources wait for slower ones, and later batches prioritize collections behind in the total. If a source runs out of matches, a notice explains the gap.
 - Keep references, revisit saved searches and export the search record.
 - Inspect the source query, model selections and timing behind a run.
 

@@ -3,7 +3,6 @@ import { OrbitScene } from './orbit-scene';
 import { VISUAL_STYLES, validateStyles, styledBrief } from './visual-styles';
 import { CREATOR_BRIEFS } from './presets';
 import { BOARD_SIZE } from './decision';
-import { CREATOR_TARGET } from './sources';
 import type { Reference, ResearchEvent, DiscoveryCursor } from './types';
 import { providerKey } from './provider-keys';
 import { curateWithAstra } from './astra-api';
@@ -28,6 +27,7 @@ let abort: AbortController | null = null;
 let started = 0;
 let picks: string[] = [];
 let detail: Reference | null = null;
+let timingLabel = '';
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(2)} s`;
 const isReference = (ref: any): ref is Reference => Boolean(ref?.id && typeof ref.title === 'string' && /^https:\/\//.test(ref.image) && /^https:\/\//.test(ref.source));
@@ -37,7 +37,7 @@ const scene = new OrbitScene($('space'), $('world'), inspect, id => {
   if (!busy || !latest || latest.firstImageMs != null || !latest.events.some(event => event.type === 'candidate' && event.reference.id === id)) return;
   latest.firstImageMs = Math.round(performance.now() - started);
   $('empty-message').hidden = true;
-});
+}, updateSourceCounts);
 
 function saveDraft() {
   try {
@@ -84,14 +84,22 @@ function updateControls() {
 
 function showTiming(ms: number, label?: string) {
   $('hud').hidden = false; $('elapsed').textContent = seconds(ms);
-  if (label) $('timing-label').textContent = label;
+  if (label) { timingLabel = label; updateSourceCounts(); }
+}
+
+function updateSourceCounts() {
+  const counts = scene.sourceCounts;
+  $('timing-label').textContent = scene.collectedCount ? `${scene.collectedCount} collected · ${scene.loadedCount} loaded` : '';
+  $('timing-state').textContent = timingLabel;
+  for (const source of ['met', 'nasa', 'cosmos'] as const) $(`count-${source}`).textContent = String(counts[source]);
+  $('source-mix').hidden = false;
 }
 
 function updateRecord() {
   if (!latest) return;
   const calls = latest.events.filter(event => ['search-plan', 'shortlist', 'decision'].includes(event.type));
   $('run-summary').textContent = `${latest.events.filter(event => event.type === 'candidate').length} assets. ${calls.length} Jev requests. ${latest.firstImageMs == null ? '' : `First image ${seconds(latest.firstImageMs)}.`}`;
-  $('raw-record').textContent = JSON.stringify({ ...latest, browserFrames: recordedBrowserFrames, inputMode: 'Source metadata; no image pixels', savedView }, null, 2);
+  if ($('raw-record').closest('details')?.open) $('raw-record').textContent = JSON.stringify({ ...latest, browserFrames: recordedBrowserFrames, inputMode: 'Source metadata; no image pixels', savedView }, null, 2);
 }
 
 function drawHistory() {
@@ -121,17 +129,17 @@ function remember() {
 
 function restore(run: SpaceRun, restorePrompt = true, browserFrames = 0) {
   if (busy) return;
-  latest = structuredClone(run); picks = []; astraPicks = []; $('curation-summary').hidden = true; savedView = true; recordedBrowserFrames = browserFrames; scene.clear(); scene.setCapacity(Math.min(CREATOR_TARGET, run.events.filter(event => event.type === 'candidate').length)); scene.reset();
+  latest = structuredClone(run); picks = []; astraPicks = []; $('curation-summary').hidden = true; savedView = true; recordedBrowserFrames = browserFrames; scene.clear(); scene.reset();
   if (restorePrompt) { prompt.value = run.brief; styles = validateStyles(run.styles); }
   for (const event of run.events) {
-    if (event.type === 'candidate' && isReference(event.reference)) { refs.set(event.reference.id, event.reference); scene.add(event.reference); }
+    if (event.type === 'candidate' && isReference(event.reference)) { refs.set(event.reference.id, event.reference); scene.add(event.reference); scene.highlight([], pins); }
     if (event.type === 'shortlist') picks.push(...event.ids);
     if (event.type === 'curation') { astraPicks = event.ids; $('curation-summary').textContent = `Astra: ${event.summary}`; $('curation-summary').hidden = false; }
     if (event.type === 'decision' && refs.has(event.decision.id)) picks.push(event.decision.id);
   }
   scene.highlight([...picks, ...astraPicks], pins); $('empty-message').hidden = run.events.some(event => event.type === 'candidate');
   showTiming(run.totalMs, 'saved search'); showMessage('Saved result. Explore searches the sources again.');
-  updateControls(); updateRecord(); saveDraft();
+  updateSourceCounts(); updateControls(); updateRecord(); saveDraft();
 }
 
 function inspect(ref: Reference) {
@@ -149,16 +157,15 @@ function eventReceived(event: ResearchEvent) {
   if (!latest) return;
   latest.events.push(event);
   if (event.type === 'stage') {
-    const count = latest.events.filter(item => item.type === 'candidate').length;
-    $('timing-label').textContent = `${count} found · ${event.stage === 'jev' ? 'Jev' : 'searching'}`;
+    timingLabel = event.stage === 'jev' ? 'Jev' : 'searching'; updateSourceCounts();
   } else if (event.type === 'candidate' && isReference(event.reference)) {
     refs.set(event.reference.id, event.reference); scene.add(event.reference);
-    const count = latest.events.filter(item => item.type === 'candidate').length;
-    $('timing-label').textContent = `${count} found · live`;
+    updateSourceCounts();
+    timingLabel = 'live';
     scene.highlight([...picks, ...astraPicks], pins);
   } else if (event.type === 'retrieval-complete') latest.retrievalMs ??= event.atMs;
   else if (event.type === 'discovery') {
-    $('timing-label').textContent = `${event.total} found · live`;
+    timingLabel = 'live'; updateSourceCounts();
     if (event.phase === 'complete' && event.round === 1) latest.firstBatchMs = event.atMs;
     if (event.phase === 'complete') { latest.totalMs = Math.round(performance.now() - started); updateRecord(); }
   }
@@ -182,8 +189,9 @@ async function explore() {
   const brief = prompt.value.trim();
   if (brief.length < 8) { showMessage('Add a subject to your prompt.', true); return; }
   saveDraft(); busy = true; stopped = false; savedView = false; recordedBrowserFrames = 0;
-  scene.clear(); scene.setCapacity(CREATOR_TARGET); scene.reset(); picks = []; astraPicks = []; $('curation-summary').hidden = true;
-  $('empty-message').hidden = false; $('empty-message').textContent = 'Finding 100 images…';
+  scene.clear(); scene.reset(); picks = []; astraPicks = []; $('curation-summary').hidden = true;
+  updateSourceCounts();
+  $('empty-message').hidden = false; $('empty-message').textContent = 'Collecting a mix from all three sources…';
   abort = new AbortController(); started = performance.now();
   latest = { startedAt: new Date().toISOString(), mode: 'creator', continuous: true, brief, styles: [...styles], status: 'running', totalMs: 0, firstImageMs: null, retrievalMs: null, events: [], selected: [...pins], pinned: [...pins] };
   const run = latest, runStyles = [...styles], runPins = [...pins];
@@ -245,7 +253,7 @@ async function explore() {
     clearInterval(clock); busy = false; latest.totalMs = Math.round(performance.now() - started);
     if (signal.aborted && curationTask && !astraPicks.length) $('curation-summary').textContent = 'Astra review stopped.';
     const count = latest.events.filter(event => event.type === 'candidate').length;
-    showTiming(latest.totalMs, latest.status === 'error' ? 'search interrupted' : latest.status === 'stopped' ? `${count} found · stopped` : `${count} assets`);
+    showTiming(latest.totalMs, latest.status === 'error' ? 'search interrupted' : latest.status === 'stopped' ? 'stopped' : 'complete');
     if (latest.status !== 'error' && latest.status !== 'stopped') showMessage('Try another style with the same prompt.');
     if (!count) { $('empty-message').hidden = false; $('empty-message').textContent = 'Try another direction.'; }
     else $('empty-message').hidden = true;
@@ -293,6 +301,7 @@ $('pin-asset').addEventListener('click', () => {
   $('pin-asset').textContent = pins.includes(detail.id) ? 'Unpin' : 'Keep'; scene.highlight(picks, pins); saveDraft();
 });
 $('saved-searches').addEventListener('change', () => { const item = history.find(run => run.id === $<HTMLSelectElement>('saved-searches').value); if (item) { restore({ ...item.latest, firstImageMs: item.firstImageMs, retrievalMs: item.retrievalMs }, true, item.renderedFrames || 0); panelOpen(false); } });
+$('raw-record').closest('details')!.addEventListener('toggle', updateRecord);
 $('export-run').addEventListener('click', () => {
   if (!latest) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(latest, null, 2)], { type: 'application/json' }));

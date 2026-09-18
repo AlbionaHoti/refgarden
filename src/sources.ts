@@ -74,7 +74,7 @@ export async function collectSource(key: SourceKey, query: string, signal: Abort
   const emit = (ref: Reference) => { if (count >= limit || seen.has(ref.image) || options.excludeIds?.has(ref.id) || options.excludeImages?.has(ref.image)) return; seen.add(ref.image); count++; receive(ref); };
   const page = Math.max(1, options.page || 1);
   if (key === 'nasa') {
-    const payload = await (await get(`https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=${Math.min(100, limit * 3)}&page=${page}`, signal)).json() as any;
+    const payload = await (await get(`https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=${CREATOR_TARGET}&page=${page}`, signal)).json() as any;
     for (const item of payload.collection?.items || []) {
       const d = item.data?.[0]; const img = safeImage(item.links?.find((x: any) => x.render === 'image')?.href);
       if (!d?.nasa_id || !img) continue;
