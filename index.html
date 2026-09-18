@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#edf0f3" />
+  <meta name="description" content="A space for your next visual. Explore live references from The Met, Cosmos and NASA." />
+  <title>RefGarden — A space for your next visual</title>
+</head>
+<body>
+  <main id="space" class="space" role="region" tabindex="0" aria-label="Image space. Drag to orbit, scroll to zoom, or use the arrow keys.">
+    <div id="world" class="world"><div class="orbit-guide"></div><div class="orbit-guide inner"></div><div class="orbit-guide outer"></div></div>
+  </main>
+  <p class="space-hint">Drag to explore · scroll to zoom</p>
+  <p id="empty-message" class="empty-message" hidden>Start with a thought.</p>
+  <aside id="prompt-panel" class="prompt-panel" aria-label="Prompt and styles">
+    <form id="prompt-form">
+      <label class="prompt-label" for="brief">Your prompt</label>
+      <textarea id="brief" rows="3" minlength="8" maxlength="2000" required spellcheck="true" placeholder="Describe the images you want…"></textarea>
+      <div class="prompt-actions"><details id="style-options"><summary id="style-summary">Styles</summary><fieldset class="style-field"><legend>Try a visual direction</legend><div id="styles" class="styles"></div></fieldset></details>
+      <button id="explore" class="create-button" type="submit"><span id="explore-label">Explore</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    </form>
+    <p id="panel-message" class="panel-message" role="status" hidden></p>
+    <details id="connections" class="panel-tools"><summary id="connection-status">Connections</summary><div class="tools-body">
+      <p id="key-privacy">Image search needs no key. Your optional OpenAI key stays in this tab and goes directly to OpenAI, never to this app’s server. Refresh or clear it below to remove it. API usage is billed to your OpenAI account.</p>
+      <p id="jev-local-note">Jev runs in the local app. Its API currently blocks direct browser access from this site, so this website does not accept Jev keys.</p>
+      <form id="key-form" class="key-form" hidden><label for="jev-key">Jev / TypeSafe API key · this Mac</label><input id="jev-key" type="password" autocomplete="off" minlength="16" maxlength="512" required disabled placeholder="Paste your Jev key" /><button id="connect-key" type="submit" disabled>Connect Jev</button><p id="key-status" role="status"></p></form>
+      <form id="openai-form" class="key-form"><label for="openai-key">OpenAI API key · optional</label><input id="openai-key" type="password" autocomplete="off" minlength="16" maxlength="512" required placeholder="Paste your OpenAI API key" /><button id="connect-openai" type="submit">Use this key</button><p id="openai-status" role="status"></p></form>
+      <label class="astra-option"><input id="use-astra" type="checkbox" disabled /> Let Astra curate the first batch</label>
+      <p>Astra adds one review using image titles and descriptions. It requires API access to GPT-6 Astra; a ChatGPT subscription does not supply an API key.</p>
+      <p><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">Get an OpenAI key</a></p>
+      <button id="clear-keys" type="button">Clear tab keys</button>
+    </div></details>
+    <p id="curation-summary" class="panel-message" hidden></p>
+    <details id="tools" class="panel-tools"><summary>Saved searches &amp; details</summary><div class="tools-body">
+      <div><label for="saved-searches">Saved searches</label><select id="saved-searches"></select></div>
+      <p id="run-summary"></p>
+      <button id="export-run" type="button" disabled>Export this search</button>
+      <details><summary>Run record</summary><pre id="raw-record">No search yet.</pre></details>
+      <p id="search-method">Every search fetches source results again. Saved searches use their recorded results and time. Model selections use metadata; models do not see the image pixels.</p>
+      <a id="legacy-link" href="/legacy.html" class="source-link">Open the detailed view</a>
+    </div></details>
+  </aside>
+  <div id="hud" class="hud" aria-label="Search timing" hidden><strong id="elapsed"></strong><small id="timing-label"></small></div>
+  <p id="status-toast" class="status-toast" role="status" hidden></p>
+  <dialog id="asset-dialog" class="asset-dialog" aria-label="Asset details">
+    <button id="close-asset" class="close-asset" aria-label="Close asset">×</button><img id="asset-image" alt="" />
+    <div class="asset-copy"><small id="asset-source"></small><h2 id="asset-title"></h2><p id="asset-description"></p><p id="asset-credit"></p><div class="asset-actions"><a id="asset-link" target="_blank" rel="noreferrer">Open original</a><button id="pin-asset" type="button">Keep</button></div></div>
+  </dialog>
+  <script type="module" src="/src/spatial.ts"></script>
+</body>
+</html>

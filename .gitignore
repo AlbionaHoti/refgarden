@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.local/
+.vercel/
+.DS_Store
+*.log
+*.pem
+*.key
+coverage/
+evidence/
+video/
+recordings/
+SESSION_HANDOFF.md
+*.tsbuildinfo

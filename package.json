@@ -1,0 +1,34 @@
+{
+  "name": "refgarden",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "build:hosted": "vite build --mode hosted",
+    "start": "./node_modules/.bin/bun server.ts",
+    "test": "./node_modules/.bin/bun test",
+    "check": "npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "bun": "1.4.2",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.0"
+  },
+  "dependencies": {
+    "playwright": "^1.63.0"
+  },
+  "packageManager": "bun@1.4.2",
+  "version": "0.1.0",
+  "description": "A spatial reference explorer for creators, with local Jev decisions.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlbionaHoti/refgarden.git"
+  },
+  "homepage": "https://github.com/AlbionaHoti/refgarden#readme",
+  "bugs": {
+    "url": "https://github.com/AlbionaHoti/refgarden/issues"
+  }
+}

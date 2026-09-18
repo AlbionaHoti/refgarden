@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c2256" />
+  <meta name="description" content="Find visual assets from The Met, Cosmos and NASA. Watch images arrive while Jev picks the standouts." />
+  <title>RefGarden — Find your next visual</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="RefGarden home"><span class="brand-symbol" aria-hidden="true">✳</span><span>Jev <strong>Curator</strong></span></a>
+    <span class="connection" id="connection">Connecting</span><button id="connect-open" class="connect-button">Connect Jev</button>
+    <button id="test-open" class="text-button">How it works</button>
+    <button id="expand" class="text-button">Expand stage</button>
+  </header>
+  <main>
+    <section class="mission" aria-label="Creative direction">
+      <div class="mission-heading"><div><h1 id="mission-title">Last Garden</h1><p id="mission-subtitle">Cyanotypes / living specimens. Three places to look.</p></div><div id="clock-anchor" class="clock-anchor"><div id="master-clock" class="master-clock" aria-label="Search timing"><strong id="stage-clock">0.00<span>s</span></strong><span id="clock-label">Time to collect references</span><span id="clock-count" class="clock-count">Up to 100 assets</span><button id="clock-stop" class="text-button" type="button" hidden>Stop current run</button></div></div></div>
+      <div class="direction-label"><span>Start with a direction, or write your own</span><button id="run-six" class="text-button" type="button">Run all six directions</button></div>
+      <div id="direction-presets" class="direction-presets" aria-label="Sample creative directions"></div>
+      <form id="brief-form" class="prompt-editor">
+        <label for="brief">What do you want to find?</label>
+        <textarea id="brief" minlength="8" maxlength="2000" required rows="4" placeholder="Describe the exhibition, subject, colors, materials, and references you want…"></textarea>
+        <div class="prompt-actions"><p id="prompt-note">Live images from three libraries. Jev picks the standouts.</p><button id="stop" type="button" class="stop-button" hidden>Stop</button><button id="run" type="submit" class="primary-button"><span id="run-label">Find assets</span><span aria-hidden="true">↗</span></button></div>
+        <p id="prompt-status" class="prompt-status" role="status" hidden></p>
+      </form>
+      <div class="search-controls"><span>Up to 6 assets per source</span><button id="sources-only" class="text-button" type="button">Search displayed queries ↗</button></div>
+      <p id="batch-status" class="batch-status" role="status" hidden></p>
+    </section>
+    <section id="live-stage" class="live-stage" data-active="idle" data-mode="creator" aria-label="Live research">
+      <div class="stage-flow">
+        <div id="astra-block" class="agent-block"><span class="step-light"></span><strong>Astra</strong><span id="astra-action">Writes the direction</span><b id="astra-time">—</b></div>
+        <div id="sources-block" class="agent-block"><span class="step-light"></span><strong>Sources</strong><span id="sources-action">Search three sources</span><b id="source-total">0 found</b></div>
+        <div id="jev-block" class="agent-block"><span class="step-light"></span><strong>Jev</strong><span id="jev-action">Selects the references</span><b id="jev-time">—</b></div>
+      </div>
+      <div class="stage-caption"><p id="stage-status">Three live sources. Edit a search below, or choose a direction.</p><span id="capture-label">Live source search</span></div>
+      <div id="source-windows" class="source-windows" aria-label="Three source windows"></div>
+      <p id="feedback" class="feedback" role="status" aria-live="polite">Checking the local connection…</p>
+    </section>
+    <section id="explorations" class="explorations" aria-label="Completed explorations" hidden><div class="explorations-heading"><h2>Compare explorations</h2><span>Saved results / select to revisit</span></div><div id="exploration-list" class="exploration-list"></div></section>
+    <details class="board-drawer"><summary>Saved references <span id="saved-count">0 saved</span></summary><section class="board-section" aria-label="Your moodboard">
+      <div class="board-heading"><div><h2>Your board <span id="board-count">0 / 6</span></h2><p id="board-hint">Your pinned images and Jev picks. Open an asset to see its original source.</p></div><button id="clear-pins" class="text-button">Clear pins</button></div>
+      <div id="board" class="board"></div>
+      <div class="board-bottom"><p id="pin-count">0 pinned</p><p id="astra-summary">Jev picks a standout from each source in one selection pass.</p></div>
+    </section></details>
+    <details class="activity-drawer"><summary>Timing &amp; run record</summary><section class="activity-section" aria-label="Run evidence">
+      <div class="activity-heading"><h2>What happened</h2><span id="run-status">No live run yet</span><button id="export" class="text-button" disabled>Export run</button></div>
+      <div class="activity-body"><ol id="event-log"><li class="empty-log">The event log records searches, incoming references and measured decisions.</li></ol><div class="run-metrics"><div><strong id="first-image">—</strong><span>First image displayed / from click</span></div><div><strong id="first-result">—</strong><span>First reference / from click</span></div><div><strong id="latency">—</strong><span>Median Jev round trip</span></div><div><strong id="frame-count">0</strong><span>Actual browser captures</span></div></div></div>
+    </section></details>
+    <details class="archive"><summary>Saved starter references <span>Previous prepared collection</span></summary><div id="archive-gallery" class="archive-gallery"></div></details>
+  </main>
+  <footer><span>Local experiment. Every reference keeps its source.</span><span>NASA / The Met / Cosmos</span></footer>
+  <dialog id="reference-dialog" class="reference-dialog"><button class="close-dialog" data-close aria-label="Close reference">×</button><img id="detail-image" alt="" /><div class="reference-copy"><span id="detail-collection"></span><h2 id="detail-title"></h2><p id="detail-description"></p><p id="detail-provenance"></p><p id="detail-credit"></p><a id="detail-source" target="_blank" rel="noreferrer" class="secondary-button">Open original source</a><button id="detail-pin" class="primary-button">Pin reference</button></div></dialog>
+  <dialog id="browser-dialog" class="browser-dialog"><button class="close-dialog" data-close aria-label="Close browser view">×</button><div class="browser-dialog-title"><strong id="browser-title"></strong><span id="browser-capture-status"></span></div><img id="browser-image" alt="Actual source browser capture" /><a id="browser-link" class="text-button" target="_blank" rel="noreferrer">Open this source in a browser</a></dialog>
+  <dialog id="test-dialog" class="test-dialog"><button class="close-dialog" data-close aria-label="Close test details">×</button><h2>How assets reach you</h2><p>Find assets searches The Met, Cosmos and NASA for 100 images across the three sources. The images stream into the gallery as each source responds. Jev then picks one standout per source in a single selection request.</p><h3>Your prompt</h3><p>Samples use their displayed search phrases. For a custom brief, Jev first chooses a search phrase for each source from options extracted from your text and a small phrase library. Its choices are shown above the results. This adds one request. Creator search uses no Astra calls or browser screenshot worker.</p><h3>Fresh search and saved results</h3><p>Each Find assets action queries the live sources again. Saved results below are local history, labeled with their recorded time. The browser and image providers may cache previously viewed thumbnails. Fast repeat image loads are not evidence of faster model decisions.</p><h3>What Jev evaluates</h3><p>Jev receives titles and descriptions, not image pixels. Its picks are suggestions from that metadata. Cosmos generated captions may be inaccurate. Every asset links to its original source.</p><h3>What the timer measures</h3><p>The main timer runs from your click through source retrieval and Jev’s selection. It includes any retry. Jev’s smaller clock measures the successful API request. The first-image metric records when a loaded image enters the visible gallery. Thumbnails load independently of the model request.</p><h3>Connection</h3><p id="connection-detail"></p><p>A TypeSafe key is stored privately in this project’s local .env file. It is never included in browser storage or exports.</p><h3>Other views</h3><p>Search displayed queries runs the editable source phrases without Jev and includes actual Playwright browser captures. Earlier saved Astra runs keep their original records. Neither path is used by Find assets.</p><details><summary>Latest run record</summary><pre id="raw-record">No run yet.</pre></details></dialog>
+  <dialog id="connect-dialog" class="test-dialog connect-dialog"><button class="close-dialog" data-close aria-label="Close Jev connection">×</button><h2>Connect Jev</h2><p>Create or copy an API key in the <a href="https://console.typesafe.ai/" target="_blank" rel="noreferrer">TypeSafe console</a>, then paste it below.</p><form id="connect-form"><label for="jev-key">TypeSafe API key</label><input id="jev-key" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="16" maxlength="512" required placeholder="Paste your key here" /><p class="connection-note">Saved in this project’s local .env file on your Mac. Check &amp; connect makes one small Jev request.</p><button id="connect-submit" class="primary-button" type="submit">Check &amp; connect</button></form><p id="connect-feedback" role="status" aria-live="polite"></p></dialog>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

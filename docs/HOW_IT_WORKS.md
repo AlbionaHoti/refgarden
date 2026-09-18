@@ -1,0 +1,61 @@
+# How RefGarden works
+
+## Local and hosted
+
+| Capability | Local app | Hosted source-search demo |
+| --- | --- | --- |
+| Query choice | Jev chooses from bounded options; exact samples may use prepared queries | Code chooses unused prompt/style phrases |
+| Retrieval | Met API, NASA API, Cosmos public page | Same collector |
+| Jev highlights | Up to one supplied reference per source per batch | None |
+| Model input | Titles, descriptions and the creator brief | No model call in source search |
+| Jev key | Local `.env`, then directly from the local backend to TypeSafe | No key accepted or configured |
+
+The application runs locally; Jev inference runs at TypeSafe. The fast path sends no image bytes to Jev, performs no browser automation and makes no Astra call.
+
+The optional OpenAI review in the spatial view calls the Responses API directly from the browser. Its key stays in tab memory and is cleared by refresh or the clear-keys control. This needs the visitor's own OpenAI API access and billing. A website still controls the JavaScript handling an entered key; local execution offers a different trust boundary.
+
+The older `/legacy.html` view retains browser captures and Codex-directed experiments. Those need additional local setup: a compatible Codex CLI/login for reviews and Playwright Chromium (`npx playwright install chromium`) for captures. They are optional and separate from Explore. Provider/model access is account-dependent.
+
+## The Jev requests
+
+`src/creator.ts` exports the request builders. `buildSearchPlan` sends the styled brief, descriptions of the collections and one choice question per source. Each candidate answer is a phrase built by `src/search-options.ts`; Jev selects an offered option rather than writing a new string.
+
+After collection, `buildShortlist` sends candidate IDs, titles, source names and descriptions truncated to 600 characters. Each source has a choice question asking for one useful reference or no match. Instructions explicitly say that the model sees no pixels and that source descriptions are data, not instructions.
+
+`src/jev-client.ts` sends the JSON payload to `https://api.typesafe.ai/v1/systemone`. Responses are validated against the candidate IDs. It retries eligible failures once and preserves collected results if model selection fails.
+
+## Retrieval and timing
+
+`src/creator-collection.ts` starts sources concurrently. `src/creator-pool.ts` reserves places for each source, removes repeated IDs and image URLs, and reallocates unused places when sources finish. The first batch targets 100 references with a 12-second source collection deadline. Source availability can produce fewer results.
+
+The continuous loop requests up to 30 new references per later batch. It retains exclusions, varies queries and advances NASA/Met pages when a query repeats. Three empty rounds end the loop. The spatial scene retains up to 100 cards while the run record can contain more.
+
+The first-image timestamp records a loaded thumbnail entering the viewport. The session timer includes source retrieval, model calls, retries and inter-batch waits. Saved searches retain their recorded timings. Browser/CDN caching can accelerate repeated image display. None of these timings is a standalone model latency benchmark.
+
+## Code map
+
+| File | Responsibility |
+| --- | --- |
+| `server.ts` | Loopback server and local credential connection |
+| `src/creator.ts` | Jev query choice and metadata highlights |
+| `src/discovery.ts` | Continuous local discovery |
+| `src/sources.ts` | Source requests, metadata and attribution |
+| `src/creator-collection.ts` | Concurrent source orchestration |
+| `src/creator-pool.ts` | Quotas and deduplication |
+| `src/spatial.ts` | Prompt, controls, run records and saved work |
+| `src/orbit-scene.ts` | Spatial layout, image arrivals and navigation |
+| `src/public-research.ts` | Keyword-only hosted orchestration |
+| `src/hosted-api.ts` | Hosted routes and credential rejection |
+| `src/astra-api.ts` | Optional browser-to-OpenAI review |
+
+## Data on disk
+
+The local `.env` contains the Jev key. Connection writes use restricted file permissions. `.local/references.json` retains a bounded metadata cache for pins and legacy runs. The browser stores prompts, pinned references and saved searches under the existing `jev-curator-*` storage names so previously saved work remains readable.
+
+Fresh Explore actions make source requests. Restoring a saved search restores its recorded results. Provider keys are excluded from search exports and browser persistence.
+
+## Vercel
+
+`npm run build:hosted` produces the source-search frontend. `api/` routes use `src/hosted-api.ts`; the local server is excluded. The retired credential proxy endpoints reject requests, and the research route accepts only search fields. A deployment does not inherit a local `.env` key or Codex login.
+
+This configuration has no accounts, payment ledger or enforceable per-user paid quotas. Running a paid Jev service requires a separately designed backend with an application-owned key, authentication and budget enforcement. Never convert the current hosted routes into a visitor-key relay.
