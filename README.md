@@ -6,7 +6,7 @@ A space to find your next visual.
 
 Explore references from **The Met, NASA and Cosmos** in a moving, three-dimensional gallery. Describe a direction, choose your styles, and follow the images as they arrive. Keep what catches your eye, with a link back to its source.
 
-[Run locally](#run-locally) · [How Jev works](docs/HOW_IT_WORKS.md) · [Roadmap](ROADMAP.md) · [Contribute](CONTRIBUTING.md)
+[Run locally](#run-locally) · [How Jev works](docs/HOW_IT_WORKS.md) · [FAQ](#faq) · [Roadmap](ROADMAP.md) · [Contribute](CONTRIBUTING.md)
 
 **Local Explore uses Jev.** It chooses search phrases and highlights references from their titles and descriptions. It does not see image pixels. The [public source-search demo](https://jev-curator.vercel.app) shows the gallery and retrieval flow without calling Jev.
 
@@ -61,6 +61,16 @@ Search phrases come from a bounded set extracted from the brief and style preset
 Images appear before the final model selection. The displayed image count is the number retrieved, not the number visually reviewed by AI. The timer includes retrieval, model requests and waiting; it is not an isolated Jev benchmark. Network conditions, source availability and thumbnail caches affect it.
 
 The fast Explore path uses source APIs and public page responses. It does not operate a browser or require Astra. Optional OpenAI metadata curation and older browser/Codex experiments are documented in [How it works](docs/HOW_IT_WORKS.md).
+
+## FAQ
+
+**Can I use this?** Yes. MIT code. Run locally with a TypeSafe API key, or open the [hosted preview](https://jev-curator.vercel.app).
+
+**Does the hosted site use Jev?** No. The [hosted preview](https://jev-curator.vercel.app) is gallery + retrieval only.
+
+**Does Jev receive images?** No. It chooses search phrases, then reads titles and descriptions. This repo fetches the files.
+
+**How is Jev prompted?** Brief + styles go in state. The code supplies candidate phrases. Jev picks one per source. Results and timings vary.
 
 ## Sources and rights
 
