@@ -59,14 +59,16 @@ test('the first visible group and every subsequent prefix stay balanced despite 
   expect(counts).toEqual({ met: 34, nasa: 33, cosmos: 33 });
 });
 
-test('a failed source releases mixed pairs from those available without waiting indefinitely', () => {
+test('a failed source still limits Cosmos to a third of the images actually released', () => {
   const received: SourceKey[] = [];
   const pool = createCreatorPool(30, reference => received.push(reference.sourceKey!));
   for (let i = 0; i < 10; i++) pool.offer(ref('cosmos', i));
   for (let i = 0; i < 10; i++) pool.offer(ref('met', i));
   expect(received).toHaveLength(0);
   pool.finish('nasa');
-  expect(received).toEqual(Array.from({ length: 10 }, (): SourceKey[] => ['met', 'cosmos']).flat());
+  expect(received.filter(source => source === 'met')).toHaveLength(10);
+  expect(received.filter(source => source === 'cosmos')).toHaveLength(5);
+  expect(pool.held('cosmos')).toBe(5);
 });
 
 test('later batches catch up the underrepresented source before releasing more from an ahead source', () => {
@@ -103,8 +105,8 @@ test('collection asks for balanced source limits and preserves results if one so
   });
   expect(limits).toEqual({ met: 34, nasa: 33, cosmos: 33 });
   expect(results.filter(value => value.sourceKey === 'met')).toHaveLength(34);
-  expect(results.filter(value => value.sourceKey === 'cosmos')).toHaveLength(33);
-  expect(results).toHaveLength(67);
+  expect(results.filter(value => value.sourceKey === 'cosmos')).toHaveLength(17);
+  expect(results).toHaveLength(51);
 });
 
 test('collection carries the run totals into its next budget and skips a source already ahead', async () => {
@@ -119,4 +121,49 @@ test('collection carries the run totals into its next budget and skips a source 
   expect(results.slice(0, 10).every(reference => reference.sourceKey === 'met')).toBe(true);
   expect(results).toHaveLength(30);
   expect(context.seenIds.size).toBe(73);
+});
+
+test('the reported 7 Met, 0 NASA, 33 Cosmos case cannot flood any stream prefix', () => {
+  for (const order of [['met', 'nasa', 'cosmos'], ['cosmos', 'met', 'nasa'], ['cosmos', 'nasa', 'met'], ['nasa', 'cosmos', 'met'], ['met', 'cosmos', 'nasa'], ['nasa', 'met', 'cosmos']] as SourceKey[][]) {
+    const counts = { met: 0, nasa: 0, cosmos: 0 };
+    const pool = createCreatorPool(100, ref => {
+      counts[ref.sourceKey]++;
+      expect(counts.cosmos * 2).toBeLessThanOrEqual(counts.met + counts.nasa);
+    });
+    for (const source of order) {
+      for (let i = 0; i < { met: 7, nasa: 0, cosmos: 33 }[source]; i++) pool.offer(ref(source, i));
+      pool.finish(source);
+    }
+    expect(counts).toEqual({ met: 7, nasa: 0, cosmos: 3 });
+    expect(pool.held('cosmos')).toBe(30);
+  }
+});
+
+test('Cosmos remains limited across rounds and video IDs do not fund extra image shares', async () => {
+  const context = { round: 1, target: 100, seenIds: new Set(['archive-video-1', 'archive-video-2']), seenImages: new Set<string>(), queries: { met: new Set<string>(), nasa: new Set<string>(), cosmos: new Set<string>() }, pages: new Map<string, number>() };
+  for (let round = 1; round <= 5; round++) {
+    context.round = round;
+    await collectCreatorSources({ met: 'toy', nasa: 'toy', cosmos: 'toy' }, new AbortController().signal, () => {}, context, undefined, async (source, _query, _signal, receive, limit) => {
+      for (let i = 0; i < Math.min(source === 'met' ? 4 : source === 'nasa' ? 0 : 100, limit!); i++) receive(ref(source, round * 100 + i));
+      return source === 'nasa' ? 0 : limit!;
+    });
+    const met = [...context.seenIds].filter(id => id.startsWith('met-')).length;
+    const cosmos = [...context.seenIds].filter(id => id.startsWith('cosmos-')).length;
+    expect(cosmos * 2).toBeLessThanOrEqual(met);
+  }
+});
+
+test('shorter institutional searches fill a shortfall, deduplicate overlaps, and keep the same source budget', async () => {
+  const context = { round: 1, target: 100, seenIds: new Set<string>(), seenImages: new Set<string>(), queries: { met: new Set<string>(), nasa: new Set<string>(), cosmos: new Set<string>() }, pages: new Map<string, number>() };
+  const calls: { source: SourceKey; query: string; limit: number }[] = [];
+  const results = await collectCreatorSources({ met: 'rare lunar crater', nasa: 'moon', cosmos: 'moon' }, new AbortController().signal, () => {}, context, undefined, async (source, query, _signal, receive, limit) => {
+    calls.push({ source, query, limit: limit! });
+    if (query === 'rare lunar crater') { receive(ref(source, 0)); return 1; }
+    for (let i = 0; i < 100; i++) receive(ref(source, i));
+    return limit!;
+  });
+  expect(calls.filter(call => call.source === 'met')).toEqual([{ source: 'met', query: 'rare lunar crater', limit: 34 }, { source: 'met', query: 'rare lunar', limit: 33 }]);
+  expect(context.queries.met.has('rare lunar')).toBe(true);
+  expect(results).toHaveLength(100);
+  expect(new Set(results.map(ref => ref.id)).size).toBe(100);
 });

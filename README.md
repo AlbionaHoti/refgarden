@@ -20,7 +20,7 @@ Or try Bauhaus ballet costumes, glowing ocean life, or a quiet editorial about a
 - Explore starts with up to 100 references, then discovers more until you press Stop or the sources stop returning new results.
 - The first 100 images have loading priority. Later results expand the gallery, loading two thumbnails at a time near the viewport. Earlier images stay in place.
 - The timer separates collected references from loaded thumbnails. Source counts cover the full collection.
-- Fresh results arrive in mixed groups. Faster sources wait for slower ones, and later batches prioritize collections behind in the total. If a source runs out of matches, a notice explains the gap.
+- Fresh results aim for equal shares of The Met, NASA and Cosmos. Cosmos stays at or below a third of collected images, including when another source runs short. NASA and The Met can try shorter search phrases; missing matches remain visible as a gap.
 - Keep references, revisit saved searches and export the search record.
 - Inspect the source query, model selections and timing behind a run.
 
@@ -37,6 +37,8 @@ npm start
 ```
 
 Open **http://127.0.0.1:4318**. Expand **Connections**, paste your [TypeSafe API key](https://console.typesafe.ai/) and choose **Connect Jev**. Then enter a prompt and press **Explore**.
+
+For moving references, check **Short videos** and try `Vintage toy commercials`. Keep **Images** checked to mix both formats. Archive clips up to three minutes long autoplay muted in the cards; click one for a larger player. See [short video sources and playback limits](docs/SHORT_VIDEOS.md).
 
 The project installs its own pinned Bun runtime. A global Bun installation is optional. Connecting the key makes a small verification request and saves it in the local, ignored `.env` file. Jev runs through TypeSafe's API and uses your provider allowance. The maintainer's server is not involved in local Jev requests.
 

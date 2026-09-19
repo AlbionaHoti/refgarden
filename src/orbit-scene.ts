@@ -1,5 +1,7 @@
 import type { Reference } from './types';
 import { GalleryCollection, ImageLoadQueue, PRIORITY_IMAGES, type GalleryEntry } from './gallery-loading';
+import { durationLabel, safeArchiveVideo } from './media';
+import { VideoPreviews } from './video-previews';
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 const radians = (degrees: number) => degrees * Math.PI / 180;
@@ -14,6 +16,10 @@ export class OrbitScene {
   private background: GalleryEntry[] = [];
   private near = new Set<Card>();
   private observer: IntersectionObserver;
+  private videoObserver: IntersectionObserver;
+  private videos = new VideoPreviews();
+  private inspecting = false;
+  private videoCards = new Map<string, { start: () => void; stop: () => void }>();
   private cancelIdle?: () => void;
   private progressFrame = 0;
   private loaded = 0;
@@ -33,6 +39,15 @@ export class OrbitScene {
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(private viewport: HTMLElement, private world: HTMLElement, private inspect: (ref: Reference) => void, private imageShown: (id: string) => void, private progress: () => void) {
+    this.videoObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.reference!;
+        const preview = this.videoCards.get(id);
+        if (!preview) continue;
+        if (entry.isIntersecting && entry.intersectionRatio >= .5) this.videos.show(id, preview);
+        else this.videos.hide(id);
+      }
+    }, { root: viewport, threshold: [0, .5] });
     this.observer = new IntersectionObserver(entries => {
       for (const entry of entries) {
         const card = this.cards.get((entry.target as HTMLElement).dataset.reference!);
@@ -43,13 +58,17 @@ export class OrbitScene {
           if (!card.queued) this.load(card);
         } else this.near.delete(card);
       }
+      this.wake();
     }, { root: viewport, rootMargin: '160px' });
     document.addEventListener('visibilitychange', () => {
       this.world.dataset.paused = String(document.hidden);
       this.loads.setPaused(document.hidden);
+      this.videos.setPaused(document.hidden || this.inspecting);
       if (!document.hidden) this.scheduleBackground();
     });
     this.loads.setPaused(document.hidden);
+    this.videos.setPaused(document.hidden);
+    window.setInterval(() => this.videos.rotate(), 12_000);
     this.resize();
     new ResizeObserver(() => this.resize()).observe(viewport);
     viewport.addEventListener('pointerdown', event => this.down(event));
@@ -118,13 +137,22 @@ export class OrbitScene {
     this.wake();
   }
 
-  private position(element: HTMLElement, slot: number) {
+  private coordinates(slot: number) {
     const angle = slot * Math.PI * (3 - Math.sqrt(5));
     // The denominator stays fixed: new images expand outward without shrinking the first 100.
     const spread = Math.sqrt((slot + .65) / PRIORITY_IMAGES);
-    element.style.setProperty('--x', `${Math.cos(angle) * this.radius * spread}px`);
-    element.style.setProperty('--y', `${Math.sin(angle) * Math.min(this.viewport.clientHeight * .365, this.radius * 1.5) * spread}px`);
-    element.style.setProperty('--z', `${Math.sin(angle * 2) * 22}px`);
+    return {
+      x: Math.cos(angle) * this.radius * spread,
+      y: Math.sin(angle) * Math.min(this.viewport.clientHeight * .365, this.radius * 1.5) * spread,
+      z: Math.sin(angle * 2) * 22,
+    };
+  }
+
+  private position(element: HTMLElement, slot: number) {
+    const { x, y, z } = this.coordinates(slot);
+    element.style.setProperty('--x', `${x}px`);
+    element.style.setProperty('--y', `${y}px`);
+    element.style.setProperty('--z', `${z}px`);
   }
 
   add(ref: Reference) {
@@ -147,6 +175,32 @@ export class OrbitScene {
     const caption = document.createElement('span'); caption.className = 'orbit-caption'; caption.textContent = ref.sourceName;
     const mark = document.createElement('span'); mark.className = 'orbit-pick'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = '✳';
     face.append(image, mark); card.append(face, caption);
+    if (safeArchiveVideo(ref.video)) {
+      const video = document.createElement('video');
+      video.className = 'orbit-video'; video.muted = true; video.defaultMuted = true;
+      video.autoplay = true; video.loop = true; video.playsInline = true; video.preload = 'none';
+      video.setAttribute('aria-hidden', 'true'); video.tabIndex = -1;
+      const badge = document.createElement('span'); badge.className = 'video-badge';
+      badge.setAttribute('aria-hidden', 'true');
+      const symbol = document.createElement('span'); symbol.className = 'video-symbol';
+      const duration = document.createElement('span'); duration.className = 'video-duration';
+      duration.textContent = durationLabel(ref.video!.durationSeconds);
+      badge.append(symbol, duration);
+      card.setAttribute('aria-label', `Inspect video: ${ref.title}, ${duration.textContent}, ${ref.sourceName}`);
+      face.append(video, badge); card.dataset.media = 'video';
+      video.addEventListener('playing', () => { card.dataset.playing = 'true'; });
+      video.addEventListener('pause', () => { card.dataset.playing = 'false'; });
+      video.addEventListener('error', () => { card.dataset.playing = 'false'; duration.textContent = 'Open'; });
+      const preview = {
+        start: () => {
+          video.src = ref.video!.url;
+          void video.play().catch(() => { card.dataset.playing = 'false'; });
+        },
+        stop: () => { video.pause(); video.removeAttribute('src'); video.load(); card.dataset.playing = 'false'; },
+      };
+      this.videoCards.set(ref.id, preview);
+      this.videoObserver.observe(card);
+    }
     card.addEventListener('dragstart', event => event.preventDefault());
     card.addEventListener('click', event => { event.preventDefault(); if (performance.now() >= this.suppressClickUntil) this.inspect(ref); });
     const item = { ...entry, element: card, image, queued: false };
@@ -204,11 +258,13 @@ export class OrbitScene {
   get sourceCounts() { return this.collection.sources; }
   get collectedCount() { return this.collection.size; }
   get loadedCount() { return this.loaded; }
+  setInspecting(value: boolean) { this.inspecting = value; this.videos.setPaused(document.hidden || value); }
 
   clear() {
     this.generation++;
     this.cancelIdle?.(); this.cancelIdle = undefined; this.background = [];
     this.loads.clear(); this.observer.disconnect(); this.near.clear();
+    this.videoObserver.disconnect(); this.videos.clear(); this.videoCards.clear();
     for (const card of this.cards.values()) { card.image.removeAttribute('src'); card.element.remove(); }
     this.cards.clear(); this.collection.clear(); this.loaded = 0;
     this.picked.clear(); this.pinned.clear(); this.notify();
@@ -288,9 +344,16 @@ export class OrbitScene {
     this.world.style.setProperty('--dolly', `${this.camera.zoom}px`);
     this.world.style.setProperty('--pan-x', `${this.camera.panX}px`);
     this.world.style.setProperty('--pan-y', `${this.camera.panY}px`);
+    const yaw = radians(this.camera.yaw), pitch = radians(this.camera.pitch);
     for (const card of this.near) {
       const depth = Math.cos(card.slot * Math.PI * 2 / 18 + radians(this.camera.yaw));
       card.element.style.setProperty('--depth-opacity', String(.76 + (depth + 1) * .12));
+      if (card.element.dataset.media === 'video') {
+        const { x, y, z } = this.coordinates(card.slot);
+        const cameraDepth = this.camera.zoom + Math.sin(pitch) * y + Math.cos(pitch) * (Math.cos(yaw) * z - Math.sin(yaw) * x);
+        // Cancel the perspective enlargement of badges without measuring layout each frame.
+        card.element.style.setProperty('--overlay-scale', String(clamp((1150 - cameraDepth) / 1150, .025, 1)));
+      }
     }
     if (axes.some(key => Math.abs(this.camera[key] - this.target[key]) > .01)) this.wake();
   }

@@ -12,7 +12,7 @@ test('all references keep distinct stable places after 100, with only the first 
   expect(entries[0].slot).toBe(0);
   expect(entries[1199].slot).toBe(1199);
   expect(gallery.size).toBe(1200);
-  expect(gallery.sources).toEqual({ met: 400, nasa: 400, cosmos: 400 });
+  expect(gallery.sources).toEqual({ met: 400, nasa: 400, cosmos: 400, archive: 0 });
 });
 
 test('duplicate IDs and image URLs do not consume places or source counts', () => {
@@ -22,10 +22,10 @@ test('duplicate IDs and image URLs do not consume places or source counts', () =
   expect(gallery.add({ ...ref('nasa', 1), image: ref('met', 1).image })).toBeUndefined();
   const next = gallery.add({ ...ref('cosmos', 1), sourceKey: undefined });
   expect(next?.slot).toBe(1);
-  expect(gallery.sources).toEqual({ met: 1, nasa: 0, cosmos: 1 });
+  expect(gallery.sources).toEqual({ met: 1, nasa: 0, cosmos: 1, archive: 0 });
   gallery.clear();
   expect(gallery.size).toBe(0);
-  expect(gallery.sources).toEqual({ met: 0, nasa: 0, cosmos: 0 });
+  expect(gallery.sources).toEqual({ met: 0, nasa: 0, cosmos: 0, archive: 0 });
   expect(gallery.add(ref('met', 1))?.slot).toBe(0);
 });
 

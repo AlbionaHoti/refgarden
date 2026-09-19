@@ -6,7 +6,8 @@ import { collectCreatorSources, type DiscoveryContext } from './creator-collecti
 import { searchOptions } from './search-options';
 export type { DiscoveryContext } from './creator-collection';
 import { styledBrief } from './visual-styles';
-import type { Reference, ResearchEvent, SourceKey } from './types';
+import type { Reference, ResearchEvent, SourceKey, CreatorInput } from './types';
+import { runMediaBatch } from './archive-videos';
 
 export { searchOptions } from './search-options';
 
@@ -48,7 +49,34 @@ export function parseShortlist(raw: unknown, payload: ReturnType<typeof buildSho
 }
 
 type Unstamped<T> = T extends { atMs: number } ? Omit<T, 'atMs'> : never;
-export async function runCreator(input: { brief: string; selected: string[]; styles?: string[] }, apiKey: string, signal: AbortSignal, send: (event: ResearchEvent) => void, discovery?: DiscoveryContext, storage?: { add: (ref: Reference) => void; persist: () => Promise<void> }) {
+export async function runCreator(input: CreatorInput, apiKey: string, signal: AbortSignal, send: (event: ResearchEvent) => void, discovery?: DiscoveryContext, storage?: { add: (ref: Reference) => void; persist: () => Promise<void> }) {
+  const began = performance.now();
+  return runMediaBatch(input, signal, event => {
+    if (event.type === 'candidate' && event.source === 'archive') storage?.add(event.reference);
+    send(event);
+  }, discovery, forward => runImageCreator(input, apiKey, signal, forward, discovery, storage), async options => {
+    const fallback = Object.values(options)[((discovery?.round || 1) - 1) % Object.keys(options).length];
+    const payload = { model: 'jev-latest', state: { brief: styledBrief(input.brief, input.styles || []), previousSearches: [...(discovery?.pages.keys() || [])].filter(key => key.startsWith('archive:')) }, questions: { next_reference: { type: 'choice', instructions: 'Choose a short search phrase for Prelinger archival commercials, animations and films. Preserve the requested subject. Prefer a phrase not previously searched when relevant. You receive only text, not video frames or audio.', criteria: options } } };
+    try {
+      const decision = await requestJevPayload(payload, apiKey, signal, message => send({ type: 'notice', atMs: Math.round(performance.now() - began), message }), (raw, ms) => parseDecision(raw, new Set(Object.keys(options)), ms));
+      const query = options[decision.id];
+      send({ type: 'archive-plan', atMs: Math.round(performance.now() - began), query, model: decision.model, roundTripMs: decision.roundTripMs });
+      return query;
+    } catch {
+      signal.throwIfAborted();
+      send({ type: 'notice', atMs: Math.round(performance.now() - began), message: 'Jev could not choose a video query. Searching words from your prompt instead.' });
+      return fallback;
+    }
+  }).then(async () => {
+    if (input.media && input.media !== 'images') await storage?.persist().catch(() => {
+      if (!signal.aborted) send({ type: 'notice', atMs: Math.round(performance.now() - began), message: 'Your clips are available in this tab, but the local history could not be saved.' });
+    });
+  }).catch(error => {
+    if (!signal.aborted) send({ type: 'error', atMs: Math.round(performance.now() - began), message: error instanceof RequestError ? error.message : 'The search could not finish. Your references are kept.' });
+  });
+}
+
+async function runImageCreator(input: CreatorInput, apiKey: string, signal: AbortSignal, send: (event: ResearchEvent) => void, discovery?: DiscoveryContext, storage?: { add: (ref: Reference) => void; persist: () => Promise<void> }) {
   const began = performance.now();
   const emit = (event: Unstamped<ResearchEvent>) => { if (!signal.aborted) send({ ...event, atMs: Math.round(performance.now() - began) } as ResearchEvent); };
   const notice = (message: string) => emit({ type: 'notice', message });

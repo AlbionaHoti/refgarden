@@ -106,7 +106,8 @@ test('public source search streams results, advances queries, and emits no model
   });
   const firstQueries = sourceSearches(body.brief, [], context);
   await runSourceSearch(body, new AbortController().signal, event => sent.push(event), context, collect);
-  expect(searched.length).toBe(3);
+  expect(searched).toEqual(expect.arrayContaining(Object.values(firstQueries)));
+  expect(searched.length).toBeLessThanOrEqual(7); // One Cosmos request, at most three for each institution.
   expect(sent.filter(event => event.type === 'candidate')).toHaveLength(3);
   expect(sent.some(event => event.type === 'search-plan' || event.type === 'shortlist' || event.type === 'decision')).toBe(false);
   context.round++;

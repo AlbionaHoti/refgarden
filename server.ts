@@ -10,6 +10,7 @@ import { validateStyles } from './src/visual-styles';
 import { validateSearches } from './src/sources';
 import { connectJev, validateKey } from './src/jev-connection';
 import { handleCuration } from './src/hosted-api';
+import { validateMedia } from './src/media';
 
 const catalog = catalogData as Reference[];
 const root = resolve(import.meta.dir, 'dist');
@@ -67,6 +68,7 @@ Bun.serve({
         const available = [...new Map([...catalog, ...liveReferences.values()].map(ref => [ref.id, ref])).values()];
         const input = body.mode === 'creator' ? validateCreatorInput(body) : validateInput(body, available);
         const styles = body.mode === 'creator' ? validateStyles(body.styles) : [];
+        const media = validateMedia(body.media);
         if (researchInFlight || astraInFlight || inFlight || keyCheckInFlight) return json({ error: 'A run or connection check is already active. Wait for it to finish.' }, 429);
         researchInFlight = true;
         const abort = new AbortController();
@@ -78,7 +80,7 @@ Bun.serve({
             const send = (event: import('./src/types').ResearchEvent) => {
               if (!signal.aborted) { try { controller.enqueue(encoder.encode(JSON.stringify(event) + '\n')); } catch { abort.abort(); } }
             };
-            const run = body.mode === 'creator' ? (continuous ? runDiscovery({ ...input, styles }, apiKey!, signal, send, runLocalCreator) : runLocalCreator({ ...input, styles }, apiKey!, signal, send)) : runResearch({ ...input, mode: body.mode, searches }, available, apiKey, signal, send);
+            const run = body.mode === 'creator' ? (continuous ? runDiscovery({ ...input, styles, media }, apiKey!, signal, send, runLocalCreator) : runLocalCreator({ ...input, styles, media }, apiKey!, signal, send)) : runResearch({ ...input, mode: body.mode, searches }, available, apiKey, signal, send);
             void run.finally(() => { researchInFlight = false; try { controller.close(); } catch { /* Client already closed. */ } });
           },
           cancel() { abort.abort(); },

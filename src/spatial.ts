@@ -6,8 +6,11 @@ import { BOARD_SIZE } from './decision';
 import type { Reference, ResearchEvent, DiscoveryCursor } from './types';
 import { providerKey } from './provider-keys';
 import { curateWithAstra } from './astra-api';
+import { validateMedia, safeArchiveVideo, durationLabel } from './media';
+import type { MediaMode } from './types';
+import { imageSourceShares } from './source-balance';
 
-type SpaceRun = { startedAt: string; mode: string; continuous?: boolean; brief: string; styles?: string[]; status: string; totalMs: number; retrievalMs?: number | null; firstImageMs?: number | null; firstBatchMs?: number; events: ResearchEvent[]; selected: string[]; pinned: string[] };
+type SpaceRun = { startedAt: string; mode: string; continuous?: boolean; brief: string; styles?: string[]; media?: MediaMode; status: string; totalMs: number; retrievalMs?: number | null; firstImageMs?: number | null; firstBatchMs?: number; events: ResearchEvent[]; selected: string[]; pinned: string[] };
 type History = { id: string; title: string; latest: SpaceRun; firstImageMs?: number | null; retrievalMs?: number | null; frames: unknown[]; frameCounts: unknown[]; renderedFrames: number };
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const prompt = $<HTMLTextAreaElement>('brief');
@@ -16,6 +19,7 @@ const form = $<HTMLFormElement>('prompt-form');
 const refs = new Map<string, Reference>();
 let pins: string[] = [];
 let styles: string[] = [];
+let media: MediaMode = 'images';
 let history: History[] = [];
 let latest: SpaceRun | null = null;
 let busy = false, configured = false, stopped = false, savedView = false;
@@ -30,7 +34,7 @@ let detail: Reference | null = null;
 let timingLabel = '';
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(2)} s`;
-const isReference = (ref: any): ref is Reference => Boolean(ref?.id && typeof ref.title === 'string' && /^https:\/\//.test(ref.image) && /^https:\/\//.test(ref.source));
+const isReference = (ref: any): ref is Reference => Boolean(ref?.id && typeof ref.title === 'string' && /^https:\/\//.test(ref.image) && /^https:\/\//.test(ref.source) && (!ref.video || safeArchiveVideo(ref.video)));
 const read = (storage: Storage, key: string) => { try { return JSON.parse(storage.getItem(key) || 'null'); } catch { return null; } };
 
 const scene = new OrbitScene($('space'), $('world'), inspect, id => {
@@ -41,7 +45,7 @@ const scene = new OrbitScene($('space'), $('world'), inspect, id => {
 
 function saveDraft() {
   try {
-    localStorage.setItem('jev-curator-space', JSON.stringify({ brief: prompt.value, styles, pins, references: pins.map(id => refs.get(id)).filter(Boolean) }));
+    localStorage.setItem('jev-curator-space', JSON.stringify({ brief: prompt.value, styles, media, pins, references: pins.map(id => refs.get(id)).filter(Boolean) }));
     localStorage.setItem('jev-curator-board', JSON.stringify({ brief: prompt.value, pins, board: [...new Set([...pins, ...picks])].slice(0, BOARD_SIZE), references: [...new Set([...pins, ...picks])].map(id => refs.get(id)).filter(Boolean) }));
   } catch { /* The current exploration remains usable when local storage is full. */ }
 }
@@ -61,6 +65,8 @@ function showMessage(text: string, error = false, outside = false) {
 }
 
 function updateControls() {
+  panel.dataset.running = String(busy);
+  document.body.dataset.running = String(busy);
   const exploreButton = $<HTMLButtonElement>('explore');
   exploreButton.disabled = false;
   exploreButton.formNoValidate = busy;
@@ -71,6 +77,11 @@ function updateControls() {
   $<HTMLSelectElement>('saved-searches').disabled = busy;
   $<HTMLButtonElement>('pin-asset').disabled = busy;
   document.querySelectorAll<HTMLInputElement>('[name=visual-style]').forEach(input => { input.disabled = busy; input.checked = styles.includes(input.value); });
+  $<HTMLInputElement>('media-images').checked = media !== 'videos';
+  $<HTMLInputElement>('media-videos').checked = media !== 'images';
+  $<HTMLInputElement>('media-images').disabled = busy;
+  $<HTMLInputElement>('media-videos').disabled = busy;
+  $('video-hint').hidden = media === 'images';
   $('connection-status').textContent = hosted ? 'Models · optional' : configured ? 'Connections · Jev ready' : 'Connections · add your key';
   $('key-form').hidden = !localMode;
   $('jev-local-note').hidden = localMode;
@@ -89,16 +100,21 @@ function showTiming(ms: number, label?: string) {
 
 function updateSourceCounts() {
   const counts = scene.sourceCounts;
-  $('timing-label').textContent = scene.collectedCount ? `${scene.collectedCount} collected · ${scene.loadedCount} loaded` : '';
+  $('timing-label').textContent = scene.collectedCount ? `${scene.collectedCount} collected · ${scene.loadedCount} ${counts.archive ? 'thumbnails' : 'loaded'}` : '';
   $('timing-state').textContent = timingLabel;
-  for (const source of ['met', 'nasa', 'cosmos'] as const) $(`count-${source}`).textContent = String(counts[source]);
+  const shares = imageSourceShares(counts);
+  for (const source of ['met', 'nasa', 'cosmos', 'archive'] as const) {
+    $(`count-${source}`).textContent = String(counts[source]);
+    if (source !== 'archive') $(`share-${source}`).textContent = `${shares[source]}%`;
+  }
+  $('archive-count').hidden = !counts.archive && media === 'images';
   $('source-mix').hidden = false;
 }
 
 function updateRecord() {
   if (!latest) return;
-  const calls = latest.events.filter(event => ['search-plan', 'shortlist', 'decision'].includes(event.type));
-  $('run-summary').textContent = `${latest.events.filter(event => event.type === 'candidate').length} assets. ${calls.length} Jev requests. ${latest.firstImageMs == null ? '' : `First image ${seconds(latest.firstImageMs)}.`}`;
+  const calls = latest.events.filter(event => ['search-plan', 'archive-plan', 'shortlist', 'decision'].includes(event.type));
+  $('run-summary').textContent = `${latest.events.filter(event => event.type === 'candidate').length} assets. ${calls.length} Jev requests. ${latest.firstImageMs == null ? '' : `First thumbnail ${seconds(latest.firstImageMs)}.`}`;
   if ($('raw-record').closest('details')?.open) $('raw-record').textContent = JSON.stringify({ ...latest, browserFrames: recordedBrowserFrames, inputMode: 'Source metadata; no image pixels', savedView }, null, 2);
 }
 
@@ -130,7 +146,7 @@ function remember() {
 function restore(run: SpaceRun, restorePrompt = true, browserFrames = 0) {
   if (busy) return;
   latest = structuredClone(run); picks = []; astraPicks = []; $('curation-summary').hidden = true; savedView = true; recordedBrowserFrames = browserFrames; scene.clear(); scene.reset();
-  if (restorePrompt) { prompt.value = run.brief; styles = validateStyles(run.styles); }
+  if (restorePrompt) { prompt.value = run.brief; styles = validateStyles(run.styles); media = validateMedia(run.media); }
   for (const event of run.events) {
     if (event.type === 'candidate' && isReference(event.reference)) { refs.set(event.reference.id, event.reference); scene.add(event.reference); scene.highlight([], pins); }
     if (event.type === 'shortlist') picks.push(...event.ids);
@@ -145,8 +161,13 @@ function restore(run: SpaceRun, restorePrompt = true, browserFrames = 0) {
 function inspect(ref: Reference) {
   detail = ref;
   const image = $<HTMLImageElement>('asset-image'); image.src = ref.image; image.alt = ref.title;
+  const video = $<HTMLVideoElement>('asset-video');
+  const hasVideo = safeArchiveVideo(ref.video);
+  image.hidden = hasVideo; video.hidden = !hasVideo;
+  scene.setInspecting(true);
+  if (hasVideo) { video.src = ref.video!.url; video.poster = ref.image; video.muted = true; void video.play().catch(() => {}); }
   $('asset-title').textContent = ref.title; $('asset-source').textContent = ref.sourceName;
-  $('asset-description').textContent = ref.description; $('asset-credit').textContent = ref.credit;
+  $('asset-description').textContent = ref.description; $('asset-credit').textContent = hasVideo ? `${ref.credit} · ${durationLabel(ref.video!.durationSeconds)}. Check the original item for reuse terms.` : ref.credit;
   $<HTMLAnchorElement>('asset-link').href = ref.source;
   $('pin-asset').textContent = pins.includes(ref.id) ? 'Unpin' : 'Keep';
   $('asset-dialog').dataset.reference = ref.id;
@@ -189,11 +210,12 @@ async function explore() {
   const brief = prompt.value.trim();
   if (brief.length < 8) { showMessage('Add a subject to your prompt.', true); return; }
   saveDraft(); busy = true; stopped = false; savedView = false; recordedBrowserFrames = 0;
+  showMessage('');
   scene.clear(); scene.reset(); picks = []; astraPicks = []; $('curation-summary').hidden = true;
   updateSourceCounts();
-  $('empty-message').hidden = false; $('empty-message').textContent = 'Collecting a mix from all three sources…';
+  $('empty-message').hidden = false; $('empty-message').textContent = media === 'videos' ? 'Finding short films in the archive…' : media === 'both' ? 'Finding images and short films…' : 'Collecting a mix from all three sources…';
   abort = new AbortController(); started = performance.now();
-  latest = { startedAt: new Date().toISOString(), mode: 'creator', continuous: true, brief, styles: [...styles], status: 'running', totalMs: 0, firstImageMs: null, retrievalMs: null, events: [], selected: [...pins], pinned: [...pins] };
+  latest = { startedAt: new Date().toISOString(), mode: 'creator', continuous: true, brief, styles: [...styles], media, status: 'running', totalMs: 0, firstImageMs: null, retrievalMs: null, events: [], selected: [...pins], pinned: [...pins] };
   const run = latest, runStyles = [...styles], runPins = [...pins];
   const signal = abort.signal;
   const runOpenaiKey = $<HTMLInputElement>('use-astra').checked ? openaiKey : '';
@@ -220,7 +242,7 @@ async function explore() {
   try {
     let cursor: DiscoveryCursor | undefined;
     do {
-    const response = await fetch('/api/research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'creator', continuous: true, brief, styles: runStyles, selected: runPins, ...(hosted ? { cursor } : {}) }), signal });
+    const response = await fetch('/api/research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'creator', continuous: true, brief, styles: runStyles, media: run.media, selected: runPins, ...(hosted ? { cursor } : {}) }), signal });
     cursor = undefined;
     if (!response.ok) { const result = await response.json(); throw new Error(result.error || 'The search could not start.'); }
     if (!response.body) throw new Error('Live results are unavailable. Try refreshing the page.');
@@ -248,7 +270,7 @@ async function explore() {
     if (latest.status === 'running') throw new Error('The search ended early. Images already found are kept.');
   } catch (error) {
     latest.status = stopped ? 'stopped' : 'error';
-    showMessage(stopped ? 'Search stopped. Your images are kept.' : error instanceof Error ? error.message : 'The search could not finish.', !stopped, true);
+    showMessage(stopped ? 'Search stopped. Your references are kept.' : error instanceof Error ? error.message : 'The search could not finish.', !stopped, true);
   } finally {
     clearInterval(clock); busy = false; latest.totalMs = Math.round(performance.now() - started);
     if (signal.aborted && curationTask && !astraPicks.length) $('curation-summary').textContent = 'Astra review stopped.';
@@ -272,6 +294,7 @@ for (const style of VISUAL_STYLES) {
 const previous = read(localStorage, 'jev-curator-space') || read(localStorage, 'jev-curator-board');
 prompt.value = typeof previous?.brief === 'string' ? previous.brief : CREATOR_BRIEFS.garden;
 try { styles = validateStyles(previous?.styles); } catch { styles = []; }
+try { media = validateMedia(previous?.media); } catch { media = 'images'; }
 if (Array.isArray(previous?.references)) for (const ref of previous.references) if (isReference(ref)) refs.set(ref.id, ref);
 if (Array.isArray(previous?.pins)) pins = [...new Set<string>(previous.pins.filter((id: unknown) => typeof id === 'string' && refs.has(id)))].slice(0, BOARD_SIZE);
 const savedHistory = read(localStorage, 'jev-curator-explorations');
@@ -287,11 +310,21 @@ form.addEventListener('submit', event => {
   void explore();
 });
 prompt.addEventListener('input', saveDraft);
+for (const id of ['media-images', 'media-videos']) $(id).addEventListener('change', () => {
+  const images = $<HTMLInputElement>('media-images').checked, videos = $<HTMLInputElement>('media-videos').checked;
+  if (!images && !videos) { updateControls(); return; }
+  media = images && videos ? 'both' : videos ? 'videos' : 'images';
+  updateControls(); updateSourceCounts(); saveDraft();
+});
 window.addEventListener('pagehide', () => abort?.abort());
 prompt.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); form.requestSubmit(); } });
 $('space').addEventListener('pointerdown', () => panelOpen(false));
 document.addEventListener('keydown', event => { if (event.key === 'Escape') panelOpen(false); });
 $('close-asset').addEventListener('click', () => $<HTMLDialogElement>('asset-dialog').close());
+$('asset-dialog').addEventListener('close', () => {
+  const video = $<HTMLVideoElement>('asset-video'); video.pause(); video.removeAttribute('src'); video.load();
+  scene.setInspecting(false);
+});
 $('asset-dialog').addEventListener('click', event => { if (event.target === $('asset-dialog')) $<HTMLDialogElement>('asset-dialog').close(); });
 $('pin-asset').addEventListener('click', () => {
   if (!detail || busy) return;

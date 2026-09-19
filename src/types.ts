@@ -9,7 +9,8 @@ export interface Reference {
   collection: string;
   sourceName: string;
   descriptionOrigin: string;
-  sourceKey?: SourceKey;
+  sourceKey?: MediaSourceKey;
+  video?: { url: string; durationSeconds: number };
   retrievedAt?: string;
 }
 
@@ -50,9 +51,12 @@ export interface Review {
 }
 
 export type SourceKey = 'met' | 'cosmos' | 'nasa';
+export type MediaSourceKey = SourceKey | 'archive';
+export type MediaMode = 'images' | 'videos' | 'both';
+export type CreatorInput = { brief: string; selected: string[]; styles?: string[]; media?: MediaMode };
 export type SourceStatus = 'waiting' | 'searching' | 'ready' | 'error';
 export interface SourceProgress {
-  key: SourceKey;
+  key: MediaSourceKey;
   query: string;
   url: string;
   status: SourceStatus;
@@ -68,7 +72,8 @@ export type ResearchEvent =
   | { type: 'stage'; atMs: number; stage: 'astra' | 'sources' | 'jev'; message: string }
   | { type: 'review'; atMs: number; review: Review }
   | { type: 'source'; atMs: number; source: SourceProgress }
-  | { type: 'candidate'; atMs: number; source: SourceKey; reference: Reference }
+  | { type: 'candidate'; atMs: number; source: MediaSourceKey; reference: Reference }
+  | { type: 'archive-plan'; atMs: number; query: string; model: string; roundTripMs: number }
   | { type: 'retrieval-complete'; atMs: number; count: number }
   | { type: 'discovery'; atMs: number; round: number; phase: 'searching' | 'complete'; total: number; added: number }
   | { type: 'browser'; atMs: number; source: SourceKey; status: string; url: string }
@@ -85,6 +90,7 @@ export interface DiscoveryCursor {
   emptyRounds: number;
   seenIds: string[];
   seenImages: string[];
+  seenKeys?: string[];
   queries: Record<SourceKey, string[]>;
   pages: [string, number][];
 }

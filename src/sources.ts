@@ -1,5 +1,6 @@
 import type { Reference, SourceKey } from './types';
 import { RequestError } from './decision';
+import { imageIdentity, referenceKeys, ReferenceIdentity } from './reference-identity';
 
 export const SOURCE_KEYS: SourceKey[] = ['met', 'cosmos', 'nasa'];
 export const REFERENCES_PER_SOURCE = 20;
@@ -67,11 +68,14 @@ export function cosmosReferences(html: string): Reference[] {
   });
 }
 
-export async function collectSource(key: SourceKey, query: string, signal: AbortSignal, receive: (ref: Reference) => void, limit = REFERENCES_PER_SOURCE, options: { page?: number; excludeIds?: Set<string>; excludeImages?: Set<string> } = {}) {
+export async function collectSource(key: SourceKey, query: string, signal: AbortSignal, receive: (ref: Reference) => void, limit = REFERENCES_PER_SOURCE, options: { page?: number; excludeIds?: Set<string>; excludeImages?: Set<string>; excludeKeys?: Set<string> } = {}) {
   limit = Math.max(1, Math.min(CREATOR_TARGET, Math.floor(limit)));
-  const seen = new Set<string>();
+  const identity = new ReferenceIdentity([...(options.excludeKeys || []), ...[...(options.excludeImages || [])].map(image => `image:${imageIdentity(image)}`)]);
   let count = 0;
-  const emit = (ref: Reference) => { if (count >= limit || seen.has(ref.image) || options.excludeIds?.has(ref.id) || options.excludeImages?.has(ref.image)) return; seen.add(ref.image); count++; receive(ref); };
+  const emit = (ref: Reference) => {
+    if (count >= limit || options.excludeIds?.has(ref.id) || referenceKeys(ref).some(key => options.excludeKeys?.has(key)) || !identity.add(ref)) return;
+    count++; receive(ref);
+  };
   const page = Math.max(1, options.page || 1);
   if (key === 'nasa') {
     const payload = await (await get(`https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=${CREATOR_TARGET}&page=${page}`, signal)).json() as any;

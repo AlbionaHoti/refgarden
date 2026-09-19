@@ -1,5 +1,6 @@
 import { referenceSource } from './source-balance';
 import type { Reference } from './types';
+import { ReferenceIdentity } from './reference-identity';
 
 export const PRIORITY_IMAGES = 100;
 export type GalleryEntry = { ref: Reference; slot: number; priority: boolean };
@@ -7,22 +8,22 @@ export type GalleryEntry = { ref: Reference; slot: number; priority: boolean };
 /** Stable places keep earlier images and pins intact as the space grows. */
 export class GalleryCollection {
   private ids = new Set<string>();
-  private images = new Set<string>();
-  readonly sources = { met: 0, nasa: 0, cosmos: 0 };
+  private identity = new ReferenceIdentity();
+  readonly sources = { met: 0, nasa: 0, cosmos: 0, archive: 0 };
   get size() { return this.ids.size; }
 
   add(ref: Reference): GalleryEntry | undefined {
-    if (this.ids.has(ref.id) || this.images.has(ref.image)) return;
+    if (!this.identity.add(ref)) return;
     const slot = this.size;
-    this.ids.add(ref.id); this.images.add(ref.image);
+    this.ids.add(ref.id);
     const source = referenceSource(ref);
     if (source) this.sources[source]++;
     return { ref, slot, priority: slot < PRIORITY_IMAGES };
   }
 
   clear() {
-    this.ids.clear(); this.images.clear();
-    this.sources.met = this.sources.nasa = this.sources.cosmos = 0;
+    this.ids.clear(); this.identity.clear();
+    this.sources.met = this.sources.nasa = this.sources.cosmos = this.sources.archive = 0;
   }
 }
 

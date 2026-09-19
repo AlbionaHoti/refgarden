@@ -22,7 +22,7 @@ export async function runDiscovery(input: Parameters<typeof runCreator>[0], key:
     emptyRounds = count ? 0 : emptyRounds + 1;
     emit({ type: 'discovery', atMs: 0, round: context.round, phase: 'complete', total: context.seenIds.size, added: count });
     if (emptyRounds >= 3) {
-      emit({ type: 'end', atMs: 0, status: 'complete', message: 'These searches stopped returning new images. Edit your prompt to explore another direction.' });
+      emit({ type: 'end', atMs: 0, status: 'complete', message: 'These searches stopped returning new references. Edit your prompt to explore another direction.' });
       return;
     }
     try { await delay(pauseMs, undefined, { signal }); } catch { return; }

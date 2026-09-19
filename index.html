@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#edf0f3" />
+  <meta name="theme-color" content="#020204" />
   <meta name="description" content="A space for your next visual. Explore live references from The Met, Cosmos and NASA." />
   <title>RefGarden — A space for your next visual</title>
 </head>
 <body>
   <main id="space" class="space" role="region" tabindex="0" aria-label="Image space. Drag to orbit, scroll to zoom, or use the arrow keys.">
+    <div class="event-horizon" aria-hidden="true"></div>
     <div id="world" class="world"><div class="orbit-guide"></div><div class="orbit-guide inner"></div><div class="orbit-guide outer"></div></div>
   </main>
   <p class="space-hint">Drag to explore · scroll to zoom</p>
@@ -16,7 +17,8 @@
   <aside id="prompt-panel" class="prompt-panel" aria-label="Prompt and styles">
     <form id="prompt-form">
       <label class="prompt-label" for="brief">Your prompt</label>
-      <textarea id="brief" rows="3" minlength="8" maxlength="2000" required spellcheck="true" placeholder="Describe the images you want…"></textarea>
+      <textarea id="brief" rows="3" minlength="8" maxlength="2000" required spellcheck="true" placeholder="Describe the images or short videos you want…"></textarea>
+      <fieldset class="media-options"><legend class="sr-only">Reference formats</legend><label><input id="media-images" type="checkbox" checked /> Images</label><label><input id="media-videos" type="checkbox" /> Short videos</label><span id="video-hint" hidden>Archive · ≤3 min · muted previews</span></fieldset>
       <div class="prompt-actions"><details id="style-options"><summary id="style-summary">Styles</summary><fieldset class="style-field"><legend>Try a visual direction</legend><div id="styles" class="styles"></div></fieldset></details>
       <button id="explore" class="create-button" type="submit"><span id="explore-label">Explore</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
     </form>
@@ -42,11 +44,11 @@
     </div></details>
   </aside>
   <div id="hud" class="hud" aria-label="Search timing" hidden><strong id="elapsed"></strong><small id="timing-label"></small><small id="timing-state"></small>
-    <div id="source-mix" class="source-counts" aria-label="References collected by source" hidden><small>Collected by source</small><div><span>The Met <b id="count-met">0</b></span><span>NASA <b id="count-nasa">0</b></span><span>Cosmos <b id="count-cosmos">0</b></span></div></div>
+    <div id="source-mix" class="source-counts" aria-label="References collected by source" hidden><small>Image mix · target ⅓ each</small><div><span>The Met <b id="count-met">0</b> <span id="share-met" class="source-share">0%</span></span><span>NASA <b id="count-nasa">0</b> <span id="share-nasa" class="source-share">0%</span></span><span>Cosmos <b id="count-cosmos">0</b> <span id="share-cosmos" class="source-share">0%</span></span><span id="archive-count" hidden>Archive clips <b id="count-archive">0</b></span></div></div>
   </div>
   <p id="status-toast" class="status-toast" role="status" hidden></p>
   <dialog id="asset-dialog" class="asset-dialog" aria-label="Asset details">
-    <button id="close-asset" class="close-asset" aria-label="Close asset">×</button><img id="asset-image" alt="" />
+    <button id="close-asset" class="close-asset" aria-label="Close asset">×</button><img id="asset-image" alt="" /><video id="asset-video" controls playsinline preload="none" hidden></video>
     <div class="asset-copy"><small id="asset-source"></small><h2 id="asset-title"></h2><p id="asset-description"></p><p id="asset-credit"></p><div class="asset-actions"><a id="asset-link" target="_blank" rel="noreferrer">Open original</a><button id="pin-asset" type="button">Keep</button></div></div>
   </dialog>
   <script type="module" src="/src/spatial.ts"></script>
